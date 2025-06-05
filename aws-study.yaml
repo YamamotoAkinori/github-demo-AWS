@@ -1,0 +1,197 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: VPC with Subnet, Internet Gateway, Route Table and EC2Instance
+
+Resources:
+
+  # VPCのテンプレート
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: aws-study-vpc
+
+  # PublicSubnetのテンプレート
+  # ap-northeast-1a
+  MySubnetPublic1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.0.0/20
+      AvailabilityZone: 
+        Fn::Select:
+        - 0
+        - Fn::GetAZs: !Ref "AWS::Region"
+      Tags:
+        - Key: Name
+          Value: aws-study-subnet-public1-ap-northeast-1a
+
+  # ap-northeast-1c
+  MySubnetPublic1c:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.16.0/20
+      AvailabilityZone: 
+        Fn::Select:
+        - 0
+        - Fn::GetAZs: !Ref "AWS::Region"
+      Tags:
+        - Key: Name
+          Value: aws-study-subnet-public1-ap-northeast-1c
+
+  MyInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: aws-study-igw
+
+  AttachGatewayPublic:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref MyInternetGateway
+
+  MyRouteTablePublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: aws-study-rtb-public
+
+  DefaultRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGatewayPublic
+    Properties:
+      RouteTableId: !Ref MyRouteTablePublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MyInternetGateway
+
+  # ap-northeast-1a
+  SubnetRouteTableAssociationPublic1a:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MySubnetPublic1a
+      RouteTableId: !Ref MyRouteTablePublic
+
+  # ap-northeast-1c
+  SubnetRouteTableAssociationPublic1c:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MySubnetPublic1c
+      RouteTableId: !Ref MyRouteTablePublic
+
+  # PrivateSubnetのテンプレート
+  # ap-northeast-1a
+  MySubnetPrivate1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.128.0/20
+      AvailabilityZone: 
+        Fn::Select:
+        - 0
+        - Fn::GetAZs: !Ref "AWS::Region"
+      Tags:
+        - Key: Name
+          Value: aws-study-subnet-private1-ap-northeast-1a
+
+  MyRouteTablePrivate1a:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: aws-study-rtb-private1-ap-northeast-1a
+
+  DefaultRoute2:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGatewayPublic
+    Properties:
+      RouteTableId: !Ref MyRouteTablePrivate1a
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MyInternetGateway
+
+  SubnetRouteTableAssociationPrivate1a:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MySubnetPrivate1a
+      RouteTableId: !Ref MyRouteTablePrivate1a
+
+  # ap-northeast-1c
+  MySubnetPrivate1c:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.144.0/20
+      AvailabilityZone: 
+        Fn::Select:
+        - 0
+        - Fn::GetAZs: !Ref "AWS::Region"
+      Tags:
+        - Key: Name
+          Value: aws-study-subnet-private2-ap-northeast-1c
+
+  MyRouteTablePrivate1c:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: aws-study-rtb-private2-ap-northeast-1c
+
+  SubnetRouteTableAssociationPrivate1c:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MySubnetPrivate1c
+      RouteTableId: !Ref MyRouteTablePrivate1c
+
+  # EC2のテンプレート
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  MyEC2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: ami-0c1638aa346a43fe8
+      InstanceType: t2.micro
+      KeyName: AkinoriYamamoto
+      SubnetId: !Ref MySubnetPublic1a
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/sdm
+          Ebs:
+            VolumeType: gp3
+            DeleteOnTermination: true
+            VolumeSize: 20
+      Tags:
+        - Key: Name
+          Value: aws-study-ec2
+
+
